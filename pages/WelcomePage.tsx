@@ -292,9 +292,13 @@ const WelcomePage = ({ onGetStarted }) => {
         ]}
       >
         {/* Main Question */}
-        <Text style={styles.mainQuestion} includeFontPadding={false}>
-  How are you feeling today?
-</Text>
+        <Text style={[
+          styles.mainQuestion,
+          // Apply Wisteriano font to main question
+          { fontFamily: fontsLoaded ? 'Wisteriano' : 'System' }
+        ]}>
+          How are you{'\n'}feeling today?
+        </Text>
         
         {/* Mood Selection Slider */}
         <Animated.View
@@ -334,10 +338,7 @@ const WelcomePage = ({ onGetStarted }) => {
         ]}
       >
         {/* Drag Handle */}
-        <Text style={styles.swipeToKnowMore}>Swipe to know more</Text>
-        <View style={styles.dragHandle}>
-         <View style={styles.dragHandle1} />
-         </View>
+        
         
         {/* Large Yellow Blob Character */}
         <View style={styles.blobContainer}>
@@ -435,7 +436,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    width: 95, // Fixed width for consistent spacing
+    width: 100, // Fixed width for consistent spacing
   },
   moodButton: {
     paddingVertical: 12,
@@ -443,19 +444,17 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
-    width: 95, // Fixed width
-    height: 40,
+    width: 100, // Fixed width
+    height: 44,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 4,
-    borderWidth:2,
-    borderColor:"#4A4A4A"
   },
   moodButtonText: {
-    fontSize: 12,
-    fontWeight: '400',
+    fontSize: 14,
+    fontWeight: '600',
     textAlign: 'center',
   },
   skipText: {
@@ -468,39 +467,12 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     position: 'relative',
   },
-  swipeToKnowMore:{
-    fontSize:14,
-    textAlign:'center',
-    marginTop:0,
-    zIndex:10,
-    color:'#a7a7a7ff'
-  },
-  dragHandle: {
-    width: 70,
-    height: 50,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 50,
-    alignSelf: 'center',
-    marginBottom: -20,
-    marginTop: -15,
-    zIndex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dragHandle1: {
-    width: 30,
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 2,
-    marginTop:20,
-    zIndex: 2,
-  },
   blobContainer: {
     alignItems: 'center',
     backgroundColor: '#FFD93D',
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
-    paddingTop: 230,
+    paddingTop: 240,
     paddingBottom: 130,
     paddingHorizontal: 32,
     position: 'relative',
