@@ -10,22 +10,13 @@ import {
   Easing,
   ScrollView,
   PanResponder,
+  ImageBackground,
 } from 'react-native';
-import { useFonts } from 'expo-font'; // Add this import
+import { useFonts } from 'expo-font';
 
 const { width, height } = Dimensions.get('window');
 
-const WelcomePage = ({ onGetStarted }) => {
-  // State for selected mood
-  const [fontsLoaded] = useFonts({
-    Wisteriano: require("../assets/fonts/WisterianoRegular-BL9Zn.ttf"),
-  });
-  
-  const [selectedMood, setSelectedMood] = useState(null);
-  
-  // State for card position
-  const [cardPosition, setCardPosition] = useState('middle'); // 'up', 'middle', 'down'
-
+const WelcomePage = ({ onGetStarted, onLogin }) => {
   // Expanded mood options - moved to useMemo to ensure stability
   const moodOptions = useMemo(() => [
     { id: 0, label: 'Excited', color: '#FF6B6B' },
@@ -39,6 +30,16 @@ const WelcomePage = ({ onGetStarted }) => {
     { id: 8, label: 'Hopeful', color: '#A8E6CF' },
   ], []);
 
+  // State for selected mood
+  const [fontsLoaded] = useFonts({
+    Wisteriano: require("../assets/fonts/WisterianoRegular-BL9Zn.ttf"),
+  });
+  
+  const [selectedMood, setSelectedMood] = useState(null);
+  
+  // State for card position
+  const [cardPosition, setCardPosition] = useState('middle'); // 'up', 'middle', 'down'
+
   // Animated values for smooth entrance
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -50,11 +51,10 @@ const WelcomePage = ({ onGetStarted }) => {
   const cardTranslateY = useRef(new Animated.Value(0)).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
 
-  // Create animated values for each mood button - fixed to prevent recreation
-  const buttonScales = useRef(null);
-  if (buttonScales.current === null) {
-    buttonScales.current = moodOptions.map(() => new Animated.Value(1));
-  }
+  // Create animated values for each mood button - FIXED: Initialize properly
+  const buttonScales = useRef(
+    moodOptions.map(() => new Animated.Value(1))
+  ).current;
 
   // Define card positions
   const cardPositions = useMemo(() => ({
@@ -62,6 +62,67 @@ const WelcomePage = ({ onGetStarted }) => {
     middle: 0, // Default position
     down: height * 0.15, // Move card down partially
   }), []);
+
+  // Handle pan gesture for card swiping using PanResponder - memoized to prevent recreation
+  const panResponder = useMemo(
+    () => PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only respond to vertical gestures
+        return Math.abs(gestureState.dy) > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      },
+      onPanResponderGrant: () => {
+        // Set offset to current value when gesture starts
+        cardTranslateY.setOffset(cardTranslateY._value);
+        cardTranslateY.setValue(0);
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        // Update the animated value during the gesture
+        cardTranslateY.setValue(gestureState.dy);
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        // Flatten the offset
+        cardTranslateY.flattenOffset();
+        
+        const { dy, vy } = gestureState;
+        
+        let newPosition = cardPosition;
+        let targetY = cardPositions[cardPosition];
+
+        // Determine new position based on gesture
+        if (dy < -100 || vy < -0.5) {
+          // Swipe up - only from down to middle
+          if (cardPosition === 'down') {
+            newPosition = 'middle';
+            targetY = cardPositions.middle;
+          }
+        } else if (dy > 100 || vy > 0.5) {
+          // Swipe down - only from middle to down
+          if (cardPosition === 'middle') {
+            newPosition = 'down';
+            targetY = cardPositions.down;
+          }
+        }
+
+        // Animate to new position
+        setCardPosition(newPosition);
+        
+        Animated.parallel([
+          Animated.spring(cardTranslateY, {
+            toValue: targetY,
+            tension: 80,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+          Animated.timing(cardOpacity, {
+            toValue: 1, // Always keep full opacity
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      },
+    }),
+    [cardPosition, cardPositions, cardTranslateY, cardOpacity]
+  );
 
   useEffect(() => {
     // Only start animation after fonts are loaded
@@ -143,9 +204,19 @@ const WelcomePage = ({ onGetStarted }) => {
     });
   };
 
+  // New function to handle login navigation
+  const handleLoginPress = () => {
+    // Call the onLogin callback if provided, otherwise call onGetStarted for compatibility
+    if (onLogin) {
+      onLogin();
+    } else {
+      onGetStarted?.();
+    }
+  };
+
   const handleMoodPress = (index) => {
     // First reset all buttons to normal scale
-    buttonScales.current.forEach((scale, i) => {
+    buttonScales.forEach((scale, i) => {
       if (i !== index) {
         Animated.spring(scale, {
           toValue: 1,
@@ -161,13 +232,13 @@ const WelcomePage = ({ onGetStarted }) => {
 
     // Animate the pressed button
     Animated.sequence([
-      Animated.spring(buttonScales.current[index], {
+      Animated.spring(buttonScales[index], {
         toValue: 0.9,
         tension: 300,
         friction: 10,
         useNativeDriver: true,
       }),
-      Animated.spring(buttonScales.current[index], {
+      Animated.spring(buttonScales[index], {
         toValue: 1.15, // Scale up the selected button
         tension: 200,
         friction: 8,
@@ -175,66 +246,6 @@ const WelcomePage = ({ onGetStarted }) => {
       }),
     ]).start();
   };
-
-  // Handle pan gesture for card swiping using PanResponder - memoized to prevent recreation
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Only respond to vertical gestures
-        return Math.abs(gestureState.dy) > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-      },
-      onPanResponderGrant: () => {
-        // Set offset to current value when gesture starts
-        cardTranslateY.setOffset(cardTranslateY._value);
-        cardTranslateY.setValue(0);
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        // Update the animated value during the gesture
-        cardTranslateY.setValue(gestureState.dy);
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        // Flatten the offset
-        cardTranslateY.flattenOffset();
-        
-        const { dy, vy } = gestureState;
-        
-        let newPosition = cardPosition;
-        let targetY = cardPositions[cardPosition];
-
-        // Determine new position based on gesture
-        if (dy < -100 || vy < -0.5) {
-          // Swipe up - only from down to middle
-          if (cardPosition === 'down') {
-            newPosition = 'middle';
-            targetY = cardPositions.middle;
-          }
-        } else if (dy > 100 || vy > 0.5) {
-          // Swipe down - only from middle to down
-          if (cardPosition === 'middle') {
-            newPosition = 'down';
-            targetY = cardPositions.down;
-          }
-        }
-
-        // Animate to new position
-        setCardPosition(newPosition);
-        
-        Animated.parallel([
-          Animated.spring(cardTranslateY, {
-            toValue: targetY,
-            tension: 80,
-            friction: 8,
-            useNativeDriver: true,
-          }),
-          Animated.timing(cardOpacity, {
-            toValue: 1, // Always keep full opacity
-            duration: 300,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      },
-    })
-  ).current;
 
   const renderMoodButton = (mood, index) => {
     const isSelected = selectedMood === index;
@@ -245,7 +256,7 @@ const WelcomePage = ({ onGetStarted }) => {
         style={[
           styles.moodButtonWrapper,
           {
-            transform: [{ scale: buttonScales.current[index] }],
+            transform: [{ scale: buttonScales[index] }],
           },
         ]}
       >
@@ -337,59 +348,50 @@ const WelcomePage = ({ onGetStarted }) => {
           },
         ]}
       >
-        {/* Drag Handle */}
-        
-        
-        {/* Large Yellow Blob Character */}
-        <View style={styles.blobContainer}>
-          <View style={styles.blob}>
-            {/* Happy Eyes */}
-            <View style={styles.eyes}>
-              <View style={styles.eyeLeft}>
-                <View style={styles.eyeClosed} />
-              </View>
-              <View style={styles.eyeRight}>
-                <View style={styles.eyeClosed} />
-              </View>
-            </View>
-            
-            {/* Happy Mouth */}
-            <View style={styles.happyMouth}>
-              <View style={styles.teeth} />
-            </View>
-          </View>
+        {/* Large Yellow Blob Container with Background Image */}
+        <ImageBackground
+          source={require('../assets/welcome.png')}
+          style={styles.blobContainer}
+          resizeMode="cover"
+          imageStyle={styles.backgroundImage}
+        >
+          
 
-          {/* Get Started Button */}
-          <Animated.View
-            style={[
-              styles.getStartedButtonContainer,
-              {
-                transform: [{ scale: mainButtonScale }],
-              },
-            ]}
-          >
-            <TouchableOpacity
-              style={styles.getStartedButton}
-              onPress={handleGetStarted}
-              activeOpacity={0.8}
+            {/* Get Started Button */}
+            <Animated.View
+              style={[
+                styles.getStartedButtonContainer,
+                {
+                  transform: [{ scale: mainButtonScale }],
+                },
+              ]}
             >
-              <Text style={[
-                styles.getStartedButtonText,
-                { fontFamily: 'System' }
-              ]}>
-                Get Started
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
+              <TouchableOpacity
+                style={styles.getStartedButton}
+                onPress={handleGetStarted}
+                activeOpacity={0.8}
+              >
+                <Text style={[
+                  styles.getStartedButtonText,
+                  { fontFamily: 'System' }
+                ]}>
+                  Get Started
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
 
-          {/* Bottom Text */}
-          <Text style={[
-            styles.bottomText,
-            { fontFamily: 'System' }
-          ]}>
-            Already have an account? <Text style={styles.loginText}>Log In</Text>
-          </Text>
-        </View>
+            {/* Bottom Text with Login Link */}
+            <Text style={[
+              styles.bottomText,
+              { fontFamily: 'System' }
+            ]}>
+              Already have an account?{' '}
+              <TouchableOpacity onPress={handleLoginPress} style={styles.loginTouchable}>
+                <Text style={styles.loginText}>Log In</Text>
+              </TouchableOpacity>
+            </Text>
+          
+        </ImageBackground>
       </Animated.View>
     </View>
   );
@@ -412,11 +414,11 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     textAlign: 'center',
     lineHeight: 40,
-    paddingVertical:17,
+    paddingVertical: 17,
     marginBottom: 5,
     marginTop: 5,
-    fontFamily:'Wisteriano',
-    letterSpacing:-1
+    fontFamily: 'Wisteriano',
+    letterSpacing: -1
   },
   moodSliderContainer: {
     marginBottom: 30,
@@ -469,98 +471,65 @@ const styles = StyleSheet.create({
   },
   blobContainer: {
     alignItems: 'center',
-    backgroundColor: '#FFD93D',
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
-    paddingTop: 240,
+    paddingTop: 380,
     paddingBottom: 130,
     paddingHorizontal: 32,
     position: 'relative',
-    overflow: 'visible',
+    overflow: 'hidden', // Changed to hidden to contain background image
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 10,
   },
-  blob: {
-    width: 120,
-    height: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 40,
+  backgroundImage: {
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
   },
-  eyes: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: 50,
-    marginBottom: 15,
-  },
-  eyeLeft: {
-    width: 16,
-    height: 6,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  eyeRight: {
-    width: 16,
-    height: 6,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  eyeClosed: {
-    width: 12,
-    height: 2,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 1,
-  },
-  happyMouth: {
-    width: 40,
-    height: 20,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  teeth: {
-    width: 30,
-    height: 8,
-    backgroundColor: '#FFD93D',
-    borderRadius: 4,
-  },
+
+  
   getStartedButtonContainer: {
     width: '100%',
-    marginBottom: 20,
+    marginBottom: 40,
   },
   getStartedButton: {
-    backgroundColor: '#2A2A2A',
-    paddingVertical: 18,
-    borderRadius: 30,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  getStartedButtonText: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: 'white',
-  },
+  backgroundColor: '#2A2A2A',
+  paddingVertical: 20,
+  paddingHorizontal:110,
+  borderRadius: 30,
+  alignItems: 'center',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+  elevation: 8,
+  position:'absolute',
+  zIndex: 100, // Add this
+},
+getStartedButtonText: {
+  fontSize: 18,
+  fontWeight: '500',
+  color: 'white',
+  // Remove zIndex from here
+},
   bottomText: {
     fontSize: 14,
     color: '#2A2A2A',
     textAlign: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop:30,
+    marginBottom:-40
+  },
+  loginTouchable: {
+    // Remove any padding/margin that might interfere with touch
   },
   loginText: {
     fontWeight: '600',
     textDecorationLine: 'underline',
+    color: '#2A2A2A',
   },
 });
 

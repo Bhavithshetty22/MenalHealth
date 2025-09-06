@@ -1,23 +1,62 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, StatusBar } from 'react-native';
-import IntroAnimation from './pages/IntroAnimation'; // Your intro animation
-import WelcomePage from './pages/WelcomePage'; // The welcome page I created
-import MainPage from './pages/MainPage'; // Your main app component
+import { View, StyleSheet, StatusBar, Text } from 'react-native';
+import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
+import { tokenCache } from '@clerk/clerk-expo/token-cache';
+
+// Your existing components
+import IntroAnimation from './pages/IntroAnimation';
+import WelcomePage from './pages/WelcomePage';
+import MainPage from './pages/MainPage';
+
+// New auth components we'll create
+import AuthFlow from './components/AuthFlow';
 
 const AppFlow = () => {
   const [currentScreen, setCurrentScreen] = useState('intro');
+  const [authInitialView, setAuthInitialView] = useState<'signin' | 'signup'>('signup');
+  const { isSignedIn, isLoaded } = useAuth();
 
   const handleIntroComplete = () => {
-    console.log('Intro animation completed, showing welcome page');
-    setCurrentScreen('welcome');
+    console.log('Intro animation completed');
+    // Check if user is authenticated after intro
+    if (isLoaded) {
+      if (isSignedIn) {
+        setCurrentScreen('main');
+      } else {
+        setCurrentScreen('welcome'); // Show welcome page first
+      }
+    } else {
+      setCurrentScreen('welcome');
+    }
   };
 
   const handleWelcomeComplete = () => {
-    console.log('Welcome page completed, showing main app');
+    console.log('Get Started pressed, going to auth');
+    setAuthInitialView('signup'); // Set to signup for "Get Started"
+    setCurrentScreen('auth');
+  };
+
+  const handleLoginFromWelcome = () => {
+    console.log('Login pressed from welcome page');
+    setAuthInitialView('signin'); // Set to signin for "Log In"
+    setCurrentScreen('auth');
+  };
+
+  const handleAuthComplete = () => {
+    console.log('Authentication completed');
     setCurrentScreen('main');
   };
 
   const renderCurrentScreen = () => {
+    // Show loading while Clerk is initializing
+    if (!isLoaded && currentScreen !== 'intro') {
+      return (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      );
+    }
+
     switch (currentScreen) {
       case 'intro':
         return (
@@ -30,6 +69,15 @@ const AppFlow = () => {
         return (
           <WelcomePage 
             onGetStarted={handleWelcomeComplete}
+            onLogin={handleLoginFromWelcome}
+          />
+        );
+      
+      case 'auth':
+        return (
+          <AuthFlow 
+            onAuthComplete={handleAuthComplete}
+            initialView={authInitialView}
           />
         );
       
@@ -50,8 +98,8 @@ const AppFlow = () => {
   return (
     <View style={styles.container}>
       <StatusBar 
-        backgroundColor="#1A1A1A" 
-        barStyle="light-content" 
+        backgroundColor="#1A1A1A"
+        barStyle="light-content"
         hidden={currentScreen === 'intro'}
       />
       {renderCurrentScreen()}
@@ -59,20 +107,15 @@ const AppFlow = () => {
   );
 };
 
-// Placeholder MainApp component - replace this with your actual main app
-const MainApp = () => {
+// Main App wrapper with ClerkProvider
+const App = () => {
   return (
-    <View style={styles.mainAppContainer}>
-      {/* Your main app content goes here */}
-      <View style={styles.placeholder}>
-        <Text style={styles.placeholderText}>
-          Your Main App Content
-        </Text>
-        <Text style={styles.placeholderSubtext}>
-          "How are you feeling today?" screen and beyond...
-        </Text>
-      </View>
-    </View>
+    <ClerkProvider 
+      publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!}
+      tokenCache={tokenCache}
+    >
+      <AppFlow />
+    </ClerkProvider>
   );
 };
 
@@ -81,29 +124,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#1A1A1A',
   },
-  mainAppContainer: {
+  loadingContainer: {
     flex: 1,
     backgroundColor: '#1A1A1A',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  placeholder: {
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  placeholderText: {
-    fontSize: 24,
-    fontWeight: '600',
+  loadingText: {
+    fontSize: 18,
     color: '#ffffff',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  placeholderSubtext: {
-    fontSize: 16,
-    color: '#b8b8c8',
-    textAlign: 'center',
-    lineHeight: 24,
+    fontWeight: '500',
   },
 });
 
-export default AppFlow;
+export default App;
